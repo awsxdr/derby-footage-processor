@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="DerbyFootageProcessor.Common/DerbyFootageProcessor.Common.csproj" Id="d24cfcde-53c8-4fb2-8945-fb404f4a6d6d" />
+  <Project Path="DerbyFootageProcessor/DerbyFootageProcessor.csproj" Id="249cefda-f00a-47a6-b077-68bf602a2ca6" />
+  <Project Path="VideoProcessor/VideoProcessor.csproj" />
+</Solution>

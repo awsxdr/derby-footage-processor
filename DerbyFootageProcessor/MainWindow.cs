@@ -1,0 +1,222 @@
+#define DEBUG_UI
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+using DerbyFootageProcessor.Common;
+using Func;
+using Microsoft.Web.WebView2.Core;
+
+namespace DerbyFootageProcessor
+{
+    public partial class MainWindow : Form, IOperatingSystemInteractions
+    {
+        public JsonSerializerOptions SerializerOptions { get; } = new(JsonSerializerDefaults.Web);
+
+#if DEBUG_UI
+        private static readonly HttpClient HttpClient = new();
+#endif
+        private FootageProcessor? _footageProcessor = null;
+        private readonly Dictionary<string, ApiMethod> _apiMethods = new();
+        private readonly Dictionary<string, ApiEndpointMatcher> _apiEndpoints = new();
+
+        private const string BaseUrl = "http://derbyfootageprocessor.localhost/";
+
+        private const string BaseDocumentScript =
+            """
+            class DerbyFootageProcessorHost {
+                static resultResolvers = {};
+                static getRandomString(length = 12) {
+                    const validCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                    return Array.from(new Array(length)).map(() => validCharacters[Math.floor(Math.random() * validCharacters.length)]).join("");
+                };
+                static invokeApiMethod(method, parameters) {
+                    return new Promise(resolve => {
+                        const returnKey = `${method}-result-${DerbyFootageProcessorHost.getRandomString()}`;
+                        DerbyFootageProcessorHost.resultResolvers[returnKey] = resolve;
+                        window.chrome.webview.postMessage({ method, parameters, returnKey });
+                    });
+                };
+                static init() {
+                    window.chrome.webview.addEventListener('message', arg => {
+                        const request = arg.data;
+                        console.log(request);
+                        
+                        if(request.type === 'RESPONSE') {
+                            const resolve = DerbyFootageProcessorHost.resultResolvers[request.returnKey];
+                            
+                            console.log(resolve ? "Resolve found" : "Resolve not found");
+                            
+                            resolve(request.result);
+                        }
+                    });
+                
+                    window.api = {
+                        %%API_METHODS%%
+                    };    
+                }
+            };
+            DerbyFootageProcessorHost.init();
+            """;
+
+
+        public MainWindow()
+        {
+            InitializeComponent();
+        }
+
+        private void MainWindow_Load(object sender, EventArgs e)
+        {
+        }
+
+        private async void WebView_WebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
+        {
+            var deferral = e.GetDeferral();
+
+            try
+            {
+                if (e.Request.Uri.StartsWith($"{BaseUrl}api/"))
+                {
+                    e.Response = await HandleApiRequest(e.Request);
+                    return;
+                }
+
+#if DEBUG_UI
+                var request = new HttpRequestMessage
+                {
+                    RequestUri = new(e.Request.Uri.Replace(BaseUrl, "http://localhost:5173/")),
+                    Method = new(e.Request.Method),
+                    Content = e.Request.Content?.Map(c => new StreamContent(c)),
+                };
+
+                foreach (var (header, value) in e.Request.Headers)
+                {
+                    request.Headers.Add(header, value);
+                }
+
+                var response = await HttpClient.SendAsync(request);
+
+                e.Response = _webView.CoreWebView2.Environment.CreateWebResourceResponse(
+                    await response.Content.ReadAsStreamAsync(),
+                    (int)response.StatusCode,
+                    response.ReasonPhrase!,
+                    string.Join("\r\n",
+                        response.Headers.Concat(response.Content.Headers)
+                            .Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"))
+                );
+#else
+                // Load from file
+#endif
+            }
+            finally
+            {
+                deferral.Complete();
+            }
+        }
+
+        private async Task<CoreWebView2WebResourceResponse> HandleApiRequest(CoreWebView2WebResourceRequest request)
+        {
+            foreach (var endpoint in _apiEndpoints.Values)
+            {
+                if (!endpoint.IsMatch(request.Uri))
+                    continue;
+
+                var fragment = endpoint.GetFragment(request.Uri);
+                var webRequest = new HttpRequestMessage
+                {
+                    RequestUri = new Uri(fragment, UriKind.Relative),
+                    Method = new(request.Method),
+                    Content = request.Content?.Map(c => new StreamContent(c))
+                };
+                var result = await endpoint.Invoke(webRequest);
+
+                var response = _webView.CoreWebView2.Environment.CreateWebResourceResponse(
+                    await result.Content.ReadAsStreamAsync(),
+                    (int)result.StatusCode,
+                    result.ReasonPhrase!,
+                    string.Join("\r\n", result.Headers.Concat(result.Content.Headers).Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"))
+                );
+
+                return response;
+            }
+
+            return _webView.CoreWebView2.Environment.CreateWebResourceResponse(
+                Stream.Null,
+                404,
+                "Not found",
+                "");
+        }
+
+        private void WebView_CoreWebView2InitializationCompleted(object sender, CoreWebView2InitializationCompletedEventArgs e)
+        {
+            _webView.CoreWebView2.AddWebResourceRequestedFilter($"{BaseUrl}*", CoreWebView2WebResourceContext.All);
+            _webView.CoreWebView2.WebResourceRequested += WebView_WebResourceRequested;
+
+            _footageProcessor = new FootageProcessor(this);
+
+            _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
+                BaseDocumentScript.Replace("%%API_METHODS%%", _apiMethods.Values.Select(GetMethodInvokeScript).Map(string.Join, "\r\n            "))
+            );
+
+            _webView.CoreWebView2.WebMessageReceived += WebView_WebMessageReceived;
+
+            _webView.CoreWebView2.Navigate(BaseUrl);
+
+            return;
+
+            static string GetMethodInvokeScript(ApiMethod method) =>
+                $"{method.Name}: args => DerbyFootageProcessorHost.invokeApiMethod('{method.Name}', args),";
+        }
+
+        private void WebView_WebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+        {
+            var request = JsonSerializer.Deserialize<RpcRequest>(e.WebMessageAsJson, SerializerOptions);
+
+            if (request == null)
+                return;
+
+            if (!_apiMethods.TryGetValue(request.Method, out var method))
+                return;
+
+
+            method.Invoke(request.Parameters)
+                .ContinueWith(result =>
+                {
+                    _webView.CoreWebView2.PostWebMessageAsJson(
+                        JsonSerializer.Serialize(new RpcResponse(request.ReturnKey, result.Result), SerializerOptions));
+                });
+        }
+
+        public void RegisterApiMethod(ApiMethod method)
+        {
+            _apiMethods[method.Name] = method;
+        }
+
+        public void RegisterApiEndpoint(ApiEndpoint endpoint)
+        {
+            _apiEndpoints[endpoint.Path] = new(endpoint);
+        }
+
+        public OpenDialogResult ShowOpenVideoFilesDialog()
+        {
+            var result = _openVideoFilesDialog.ShowDialog(this);
+
+            return new(result == DialogResult.OK, _openVideoFilesDialog.FileNames);
+        }
+
+        private record RpcRequest(string Method, JsonObject Parameters, string ReturnKey);
+
+        private record RpcResponse(string ReturnKey, object? Result)
+        {
+            public string Type => "RESPONSE";
+        }
+
+        private class ApiEndpointMatcher(ApiEndpoint endpoint)
+        {
+            private readonly Regex _matchRegex = new($"^{BaseUrl}api/(?<f>{Regex.Escape(endpoint.Path).Replace("\\*", ".*")})$");
+
+            public Task<HttpResponseMessage> Invoke(HttpRequestMessage request) => endpoint.Invoke(request);
+            public bool IsMatch(string path) => _matchRegex.IsMatch(path);
+            public string GetFragment(string path) => _matchRegex.Match(path).Groups["f"].Value;
+        }
+    }
+}
