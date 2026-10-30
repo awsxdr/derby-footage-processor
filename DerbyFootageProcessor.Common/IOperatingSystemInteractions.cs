@@ -10,7 +10,11 @@ public interface IOperatingSystemInteractions
     void RegisterApiMethod(ApiMethod method);
     void RegisterApiEndpoint(ApiEndpoint endpoint);
 
+    OpenDialogResult ShowOpenProjectDialog();
     OpenDialogResult ShowOpenVideoFilesDialog();
+    SaveDialogResult ShowSaveProjectDialog();
+
+    void CloseWindow();
 
     JsonSerializerOptions SerializerOptions { get; }
 
@@ -34,10 +38,22 @@ public interface IOperatingSystemInteractions
             var passedParameters = parameters.Select(x => p[x.Name ?? ""]?.Deserialize(x.ParameterType, SerializerOptions)).ToArray();
             var resultTask = (Task)method.Invoke(methodTarget, passedParameters)!;
 
-            var resultProperty = resultTask.GetType().GetProperty("Result");
-            object? result = resultProperty?.GetGetMethod()?.Invoke(resultTask, []);
+            try
+            {
+                await resultTask;
 
-            return result;
+                var resultProperty = resultTask.GetType().GetProperty("Result");
+                object? result = resultProperty?.GetGetMethod()?.Invoke(resultTask, []);
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("### Exception invoking {methodName}:");
+                Console.WriteLine(ex);
+
+                return null;
+            }
         };
 
         RegisterApiMethod(methodName, invoke);

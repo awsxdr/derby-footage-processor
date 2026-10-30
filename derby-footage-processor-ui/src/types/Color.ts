@@ -16,6 +16,8 @@ export type RgbColor = {
     blue: number;
 }
 
+export type ByteRgbColor = RgbColor;
+
 const clamp = (value: number, min: number, max: number) =>
     Math.min(Math.max(value, min), max);
 
@@ -161,6 +163,10 @@ export const Color = {
         const toHexComponent = (value: number) => Math.round(value * 255).toString(16).padStart(2, '0');
 
         return `#${toHexComponent(color.red)}${toHexComponent(color.green)}${toHexComponent(color.blue)}`;
+    },
+
+    byteRgbToRgb: (color: ByteRgbColor): RgbColor => {
+        return Color.clampRgbValues({ red: color.red / 255, green: color.green / 255, blue: color.blue / 255});
     },
 
     parseRgb: (colorString: string): RgbColor | undefined => {

@@ -6,17 +6,24 @@ import { ColorSelectButton } from ".";
 import { Color, type HslColor } from "@/types";
 import { Slider } from "./ui";
 import { VideoItem } from "./VideoItem";
+import { VideoFileList } from "./VideoFileList";
 
 export type AddOverlayWizardStepProps = {
+    onBusyChanged: (isBusy: boolean) => void;
     onReadyToContinueChanged: (readyToContinue: boolean) => void;
 }
 
-export const AddOverlayWizardStep = ({ onReadyToContinueChanged }: AddOverlayWizardStepProps) => {
+export const AddOverlayWizardStep = ({ onBusyChanged, onReadyToContinueChanged }: AddOverlayWizardStepProps) => {
     const [overlayFiles, setOverlayFiles] = useState<VideoFile[]>([]);
+    const [isBusy, setIsBusy] = useState(false);
+
+    useEffect(() => onBusyChanged(isBusy), [isBusy]);
 
     const handleAddFile = useCallback(async () => {
+        setIsBusy(true);
         const files = await window.api.openOverlayFiles();
         setOverlayFiles(files);
+        setIsBusy(false);
     }, [setOverlayFiles]);
 
     const handleRemoveFile = useCallback(async (fileId: string) => {
@@ -49,7 +56,7 @@ export const AddOverlayWizardStep = ({ onReadyToContinueChanged }: AddOverlayWiz
             <div className="pb-2 text-lg">Overlay files</div>
             <div className="flex gap-2 items-center">
                 <span>Background color</span>
-                <ColorSelectButton className="w-8 h-8" color={chromaKeyColor} onColorChanged={setChromaKeyColor} />
+                <ColorSelectButton disabled={isBusy} className="w-8 h-8" color={chromaKeyColor} onColorChanged={setChromaKeyColor} />
             </div>
             <div className="flex gap-2 items-center">
                 <span>Variance</span>
@@ -57,20 +64,15 @@ export const AddOverlayWizardStep = ({ onReadyToContinueChanged }: AddOverlayWiz
                     value={[chromaKeyVariance]} 
                     max={100} 
                     min={0} 
+                    disabled={isBusy}
                     onValueChange={handleVarianceChange} 
                 />
                 <span>{chromaKeyVariance}%</span>
             </div>
             <div className="flex justify-end">
-                <Button onClick={handleAddFile}>Add file(s)</Button>
+                <Button onClick={handleAddFile} disabled={isBusy}>Add file(s)</Button>
             </div>
-            <Card>
-                <CardContent className="flex flex-wrap gap-4">
-                    {overlayFiles.map(f => (
-                        <VideoItem file={f} key={f.id} onFileRemoved={handleRemoveFile} />
-                    ))}
-                </CardContent>
-            </Card>
+            <VideoFileList videos={overlayFiles} onFileRemoved={handleRemoveFile} />
         </>
     );
 

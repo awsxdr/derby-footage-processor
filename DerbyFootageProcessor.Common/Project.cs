@@ -1,12 +1,14 @@
 ﻿namespace DerbyFootageProcessor.Common;
 
 public record Project(
+    bool IsDirty,
+    string? FilePath,
     VideoFile[] FootageFiles,
     VideoFile[] OverlayFiles,
     ChromaKey ChromaKey
 )
 {
-    public static Project Default => new([], [], new(0, 255, 0, 10));
+    public static Project Default => new(false, null, [], [], new(0, 255, 0, 10));
 }
 
 public record VideoFile(string Id, string Path, string Name, VideoDuration Duration);

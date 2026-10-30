@@ -1,4 +1,5 @@
 export type Project = {
+    isDirty: boolean;
     footageFiles: VideoFile[];
     overlayFiles: VideoFile[];
     chromaKey: ChromaKey;

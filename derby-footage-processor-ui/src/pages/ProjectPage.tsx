@@ -1,4 +1,5 @@
 import { ProjectEditor, VideoDraftPlayer } from "@/components";
+import { ProjectMenu } from "@/components/ProjectMenu";
 import { RightSidebar } from "@/layouts";
 import type { Project } from "@/types";
 import { useCallback, useEffect, useState } from "react";
@@ -18,6 +19,7 @@ export const ProjectPage = () => {
 
     return (
         <RightSidebar
+            menu={(project && <ProjectMenu project={project} />)}
             mainContent={(project && <VideoDraftPlayer project={project} />)}
             sidebarContent={(project && <ProjectEditor project={project} onProjectChanged={handleProjectChanged} />)}
         />

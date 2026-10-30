@@ -30,6 +30,8 @@
         {
             _webView = new Microsoft.Web.WebView2.WinForms.WebView2();
             _openVideoFilesDialog = new OpenFileDialog();
+            _openProjectFileDialog = new OpenFileDialog();
+            _saveProjectFileDialog = new SaveFileDialog();
             ((System.ComponentModel.ISupportInitialize)_webView).BeginInit();
             SuspendLayout();
             // 
@@ -54,6 +56,19 @@
             _openVideoFilesDialog.OkRequiresInteraction = true;
             _openVideoFilesDialog.RestoreDirectory = true;
             // 
+            // _openProjectFileDialog
+            // 
+            _openProjectFileDialog.Filter = "Project files|*.dfpproj|All files|*.*";
+            _openProjectFileDialog.OkRequiresInteraction = true;
+            _openProjectFileDialog.RestoreDirectory = true;
+            // 
+            // _saveProjectFileDialog
+            // 
+            _saveProjectFileDialog.DefaultExt = "dfpproj";
+            _saveProjectFileDialog.Filter = "Project files|*.dfpproj|All files|*.*";
+            _saveProjectFileDialog.OkRequiresInteraction = true;
+            _saveProjectFileDialog.RestoreDirectory = true;
+            // 
             // MainWindow
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -71,5 +86,7 @@
 
         private Microsoft.Web.WebView2.WinForms.WebView2 _webView;
         private OpenFileDialog _openVideoFilesDialog;
+        private OpenFileDialog _openProjectFileDialog;
+        private SaveFileDialog _saveProjectFileDialog;
     }
 }

@@ -2,7 +2,11 @@ import type { OverlaySettings, Project, VideoFile } from ".";
 
 export type Api = {
     startNewProject: () => Promise<void>;
-    getCurrentProject: () => Promise<Project>
+    openProject: () => Promise<boolean>;
+    saveProject: (parameters: { forceDialog: boolean }) => Promise<void>;
+    render: () => Promise<void>;
+    exit: () => Promise<void>;
+    getCurrentProject: () => Promise<Project>;
     getFootageFiles: () => Promise<VideoFile[]>;
     openFootageFiles: () => Promise<VideoFile[]>;
     removeFootageFile: (parameters: { fileId: string }) => Promise<VideoFile[]>;

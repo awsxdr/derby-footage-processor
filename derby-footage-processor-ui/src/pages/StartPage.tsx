@@ -12,6 +12,14 @@ export const StartPage = () => {
         await navigate('/newProject');
     }, [navigate]);
 
+    const handleOpenClick = useCallback(async () => {
+        const dialogResult = await window.api.openProject();
+
+        if(dialogResult) {
+            await navigate('/project');
+        }
+    }, [navigate]);
+
     return (
         <CenteredDialog
             title="Derby Footage Processor"
@@ -19,9 +27,9 @@ export const StartPage = () => {
                 <div className="flex flex-col gap-2">
                     <div className="pb-2">What would you like to do?</div>
                     <Button onClick={handleNewClick}>New Project</Button>
-                    <Button>Open Project</Button>
+                    <Button onClick={handleOpenClick}>Open Project</Button>
                 </div>
             )}
         />
-    )
+    );
 }

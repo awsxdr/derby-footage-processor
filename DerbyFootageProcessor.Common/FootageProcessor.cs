@@ -8,6 +8,7 @@ public class FootageProcessor
     private readonly IOperatingSystemInteractions _osInteractions;
     private Project _currentProject = Project.Default;
     private readonly VideoProcessor _videoProcessor = new();
+    private readonly ProjectSerializer _projectSerializer = new();
     private readonly Dictionary<string, Task<byte[]>> _videoThumbnails = new();
 
     public FootageProcessor(IOperatingSystemInteractions osInteractions)
@@ -17,6 +18,10 @@ public class FootageProcessor
         _osInteractions = osInteractions;
 
         osInteractions.RegisterApiMethod("startNewProject", this, x => x.StartNewProject());
+        osInteractions.RegisterApiMethod("openProject", this, x => x.OpenProject());
+        osInteractions.RegisterApiMethod("saveProject", this, x => x.SaveProject(Placeholder.For<bool>()));
+        osInteractions.RegisterApiMethod("render", this, x => x.Render());
+        osInteractions.RegisterApiMethod("exit", this, x => x.Exit());
         osInteractions.RegisterApiMethod("getCurrentProject", () => Task.FromResult(_currentProject));
         osInteractions.RegisterApiMethod("getFootageFiles", this, x => x.GetFootageFiles());
         osInteractions.RegisterApiMethod("openFootageFiles", this, x => x.OpenFootageFiles());
@@ -35,12 +40,56 @@ public class FootageProcessor
         return Task.CompletedTask;
     }
 
+    private async Task<bool> OpenProject()
+    {
+        var dialogResult = _osInteractions.ShowOpenProjectDialog();
+
+        if (!dialogResult.OkClicked)
+            return false;
+
+        _currentProject = await _projectSerializer.LoadFile(dialogResult.FilePaths.Single());
+
+        return true;
+    }
+
+    private async Task<bool> SaveProject(bool forceDialog)
+    {
+        if (forceDialog || _currentProject.FilePath == null)
+        {
+            var dialogResult = _osInteractions.ShowSaveProjectDialog();
+
+            if (!dialogResult.OkClicked)
+                return false;
+
+            _currentProject = _currentProject with { FilePath = dialogResult.FilePath };
+        }
+
+        await _projectSerializer.SaveFile(_currentProject, _currentProject.FilePath);
+
+        return true;
+    }
+
+    private Task Render()
+    {
+        throw new NotImplementedException();
+    }
+
+    private Task Exit()
+    {
+        _osInteractions.CloseWindow();
+
+        return Task.CompletedTask;
+    }
+
     private Task<VideoFile[]> GetFootageFiles() =>
         Task.FromResult(_currentProject.FootageFiles);
 
     private Task<VideoFile[]> OpenFootageFiles()
     {
         var dialogResult = _osInteractions.ShowOpenVideoFilesDialog();
+
+        if (!dialogResult.OkClicked)
+            return Task.FromResult(Array.Empty<VideoFile>());
 
         var newFootageFiles =
             dialogResult.FilePaths.Select(f => new VideoFile(
@@ -53,6 +102,7 @@ public class FootageProcessor
 
         _currentProject = _currentProject with
         {
+            IsDirty = true,
             FootageFiles =
                 _currentProject.FootageFiles.Concat(newFootageFiles).ToArray()
         };
@@ -69,6 +119,7 @@ public class FootageProcessor
     {
         _currentProject = _currentProject with
         {
+            IsDirty = true,
             FootageFiles = _currentProject.FootageFiles.Where(f => f.Id != fileId).ToArray(),
         };
 
@@ -93,6 +144,7 @@ public class FootageProcessor
 
         _currentProject = _currentProject with
         {
+            IsDirty = true,
             OverlayFiles = _currentProject.OverlayFiles.Concat(newOverlayFiles).ToArray()
         };
 
@@ -108,6 +160,7 @@ public class FootageProcessor
     {
         _currentProject = _currentProject with
         {
+            IsDirty = true,
             OverlayFiles = _currentProject.OverlayFiles.Where(f => f.Id != fileId).ToArray(),
         };
 
@@ -118,6 +171,7 @@ public class FootageProcessor
     {
         _currentProject = _currentProject with
         {
+            IsDirty = true,
             ChromaKey = chromaKey,
         };
 
@@ -126,7 +180,7 @@ public class FootageProcessor
 
     private async Task<HttpResponseMessage> GetVideoThumbnail(HttpRequestMessage request)
     {
-        var videoId = request.RequestUri?.ToString().Replace("thumbnail/", "");
+        var videoId = request.RequestUri?.LocalPath.Replace("/thumbnail/", "");
 
         if (videoId == null)
             return new(HttpStatusCode.NotFound);
@@ -148,7 +202,7 @@ public class FootageProcessor
 
     private async Task<HttpResponseMessage> GetVideoDraftFrame(HttpRequestMessage request)
     {
-        var (frameNumber, quality) = (request.RequestUri?.ToString().Replace("draftFrame/", "") ?? "0/360").Split('/').Map(s => (int.Parse(s[0]), s[1]));
+        var (frameNumber, quality) = (request.RequestUri?.LocalPath.Replace("/draftFrame/", "") ?? "0/360").Split('/').Map(s => (int.Parse(s[0]), s[1]));
 
         var (width, height) = quality switch
         {
@@ -172,3 +226,5 @@ public class FootageProcessor
 }
 
 public record OpenDialogResult(bool OkClicked, string[] FilePaths);
+
+public record SaveDialogResult(bool OkClicked, string FilePath);

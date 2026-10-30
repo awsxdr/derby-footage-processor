@@ -15,11 +15,11 @@ namespace DerbyFootageProcessor
 #if DEBUG_UI
         private static readonly HttpClient HttpClient = new();
 #endif
+        private static readonly Uri BaseUri = new("http://derbyfootageprocessor.localhost/");
+
         private FootageProcessor? _footageProcessor = null;
         private readonly Dictionary<string, ApiMethod> _apiMethods = new();
         private readonly Dictionary<string, ApiEndpointMatcher> _apiEndpoints = new();
-
-        private const string BaseUrl = "http://derbyfootageprocessor.localhost/";
 
         private const string BaseDocumentScript =
             """
@@ -64,6 +64,11 @@ namespace DerbyFootageProcessor
             InitializeComponent();
         }
 
+        public void CloseWindow()
+        {
+            Close();
+        }
+
         private void MainWindow_Load(object sender, EventArgs e)
         {
         }
@@ -74,7 +79,7 @@ namespace DerbyFootageProcessor
 
             try
             {
-                if (e.Request.Uri.StartsWith($"{BaseUrl}api/"))
+                if (e.Request.Uri.StartsWith($"{BaseUri}api/"))
                 {
                     e.Response = await HandleApiRequest(e.Request);
                     return;
@@ -83,7 +88,7 @@ namespace DerbyFootageProcessor
 #if DEBUG_UI
                 var request = new HttpRequestMessage
                 {
-                    RequestUri = new(e.Request.Uri.Replace(BaseUrl, "http://localhost:5173/")),
+                    RequestUri = new(e.Request.Uri.Replace(BaseUri.OriginalString, "http://localhost:5173/")),
                     Method = new(e.Request.Method),
                     Content = e.Request.Content?.Map(c => new StreamContent(c)),
                 };
@@ -123,7 +128,7 @@ namespace DerbyFootageProcessor
                 var fragment = endpoint.GetFragment(request.Uri);
                 var webRequest = new HttpRequestMessage
                 {
-                    RequestUri = new Uri(fragment, UriKind.Relative),
+                    RequestUri = new Uri(BaseUri, fragment),
                     Method = new(request.Method),
                     Content = request.Content?.Map(c => new StreamContent(c))
                 };
@@ -148,7 +153,7 @@ namespace DerbyFootageProcessor
 
         private void WebView_CoreWebView2InitializationCompleted(object sender, CoreWebView2InitializationCompletedEventArgs e)
         {
-            _webView.CoreWebView2.AddWebResourceRequestedFilter($"{BaseUrl}*", CoreWebView2WebResourceContext.All);
+            _webView.CoreWebView2.AddWebResourceRequestedFilter($"{BaseUri}*", CoreWebView2WebResourceContext.All);
             _webView.CoreWebView2.WebResourceRequested += WebView_WebResourceRequested;
 
             _footageProcessor = new FootageProcessor(this);
@@ -159,7 +164,7 @@ namespace DerbyFootageProcessor
 
             _webView.CoreWebView2.WebMessageReceived += WebView_WebMessageReceived;
 
-            _webView.CoreWebView2.Navigate(BaseUrl);
+            _webView.CoreWebView2.Navigate(BaseUri.AbsoluteUri);
 
             return;
 
@@ -177,12 +182,23 @@ namespace DerbyFootageProcessor
             if (!_apiMethods.TryGetValue(request.Method, out var method))
                 return;
 
-
             method.Invoke(request.Parameters)
                 .ContinueWith(result =>
                 {
-                    _webView.CoreWebView2.PostWebMessageAsJson(
-                        JsonSerializer.Serialize(new RpcResponse(request.ReturnKey, result.Result), SerializerOptions));
+                    if (result.IsFaulted)
+                    {
+                        Console.WriteLine($"### Exception invoking {method.Name}:");
+                        Console.WriteLine(result.Exception);
+                        return;
+                    }
+
+                    Invoke(() =>
+                    {
+                        _webView.CoreWebView2?.PostWebMessageAsJson(
+                            JsonSerializer.Serialize(
+                                new RpcResponse(request.ReturnKey, result.Result),
+                                SerializerOptions));
+                    });
                 });
         }
 
@@ -196,11 +212,25 @@ namespace DerbyFootageProcessor
             _apiEndpoints[endpoint.Path] = new(endpoint);
         }
 
+        public OpenDialogResult ShowOpenProjectDialog()
+        {
+            var result = Invoke(() => _openProjectFileDialog.ShowDialog(this));
+
+            return new OpenDialogResult(result == DialogResult.OK, _openProjectFileDialog.FileNames);
+        }
+
         public OpenDialogResult ShowOpenVideoFilesDialog()
         {
-            var result = _openVideoFilesDialog.ShowDialog(this);
+            var result = Invoke(() => _openVideoFilesDialog.ShowDialog(this));
 
             return new(result == DialogResult.OK, _openVideoFilesDialog.FileNames);
+        }
+
+        public SaveDialogResult ShowSaveProjectDialog()
+        {
+            var result = Invoke(() => _saveProjectFileDialog.ShowDialog(this));
+
+            return new(result == DialogResult.OK, _saveProjectFileDialog.FileName);
         }
 
         private record RpcRequest(string Method, JsonObject Parameters, string ReturnKey);
@@ -212,7 +242,7 @@ namespace DerbyFootageProcessor
 
         private class ApiEndpointMatcher(ApiEndpoint endpoint)
         {
-            private readonly Regex _matchRegex = new($"^{BaseUrl}api/(?<f>{Regex.Escape(endpoint.Path).Replace("\\*", ".*")})$");
+            private readonly Regex _matchRegex = new($"^{BaseUri}api/(?<f>{Regex.Escape(endpoint.Path).Replace("\\*", ".*")})$");
 
             public Task<HttpResponseMessage> Invoke(HttpRequestMessage request) => endpoint.Invoke(request);
             public bool IsMatch(string path) => _matchRegex.IsMatch(path);

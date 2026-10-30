@@ -1,8 +1,9 @@
 import { Button, Slider } from "@/components/ui";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { type Project } from "@/types";
+import { Color, type Project } from "@/types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AspectRatio } from "./ui/aspect-ratio";
+import { FrameTime } from "./FrameTime";
 
 export type VideoDraftPlayerProps = {
     project: Project;
@@ -15,19 +16,6 @@ export const VideoDraftPlayer = ({ project }: VideoDraftPlayerProps) => {
     useEffect(() => setSeekFrame(frame), [frame, setSeekFrame]);
 
     const totalFrameCount = useMemo(() => project.footageFiles.reduce((t, f) => t + f.duration.frames, 0), [project])
-
-    const formatFrameTime = (frame: number) => {
-        const totalSeconds = frame / 25;
-        const frames = frame % 25;
-        const seconds = Math.floor(totalSeconds) % 60;
-        const minutes = Math.floor(totalSeconds / 60) % 60;
-        const hours = Math.floor(totalSeconds / 60 / 60) % 60;
-
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}+${frames.toString().padStart(2, '0')}`;
-    };
-
-    const seekFrameTime = useMemo(() => formatFrameTime(seekFrame), [seekFrame]);
-    const totalFrameTime = useMemo(() => formatFrameTime(totalFrameCount), [totalFrameCount]);
 
     const handleDecrementFrame = useCallback((frameCount: number = 1) => {
         setFrame(c => Math.max(0, c - frameCount));
@@ -60,8 +48,16 @@ export const VideoDraftPlayer = ({ project }: VideoDraftPlayerProps) => {
         setFrame(frame);
     }, [setFrame]);
 
+    const videoUrl = useMemo(
+        () => {
+            const hexColor = Color.rgbToString(Color.byteRgbToRgb(project.chromaKey));
+            return `/api/draftFrame/${frame}/${displayQuality}?c=${hexColor}`;
+        },
+        [project, frame, displayQuality]
+    );
+
     return (
-        <div className="grid grid-rows-[min-content_1fr_min-content] gap-4 py-4 h-full max-h-[100vh]">
+        <div className="grid grid-rows-[min-content_1fr_min-content] gap-4 py-4 h-full">
             <div className="grid-row-1 flex justify-end items-center gap-2 px-4">
                 <span>Display quality</span>
                 <Select items={items} value={displayQuality} onValueChange={handleDisplayQualityValueChange}>
@@ -79,7 +75,7 @@ export const VideoDraftPlayer = ({ project }: VideoDraftPlayerProps) => {
                 <div className="grid-row-1"></div>
                 <div className="grid-row-2 max-h-full h-full overflow-hidden">
                     <AspectRatio className="m-auto max-h-full max-w-full" ratio={16 / 9}>
-                        <img src={`/api/draftFrame/${frame}/${displayQuality}`} className="grow w-full h-full" />
+                        <img src={videoUrl} className="grow w-full h-full" />
                     </AspectRatio>
                     <Slider 
                         className="relative bottom-8 px-8" 
@@ -96,7 +92,9 @@ export const VideoDraftPlayer = ({ project }: VideoDraftPlayerProps) => {
                     <Button onClick={() => handleDecrementFrame(25)}>&lt; 1s</Button>
                     <Button onClick={() => handleDecrementFrame(1)}>&lt;</Button>
                 </div>
-                <span className="tabular-nums slashed-zero">{seekFrameTime} / {totalFrameTime}</span>
+                <div>
+                    <FrameTime frame={seekFrame} includeFrames /> / <FrameTime frame={totalFrameCount} includeFrames />
+                </div>
                 <div className="flex gap-2">
                     <Button onClick={() => handleIncrementFrame(1)}>&gt;</Button>
                     <Button onClick={() => handleIncrementFrame(25)}>1s &gt;</Button>
