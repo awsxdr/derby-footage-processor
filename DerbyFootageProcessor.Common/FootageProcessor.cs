@@ -180,7 +180,7 @@ public class FootageProcessor
 
     private async Task<HttpResponseMessage> GetVideoThumbnail(HttpRequestMessage request)
     {
-        var videoId = request.RequestUri?.LocalPath.Replace("/thumbnail/", "");
+        var videoId = request.RequestUri?.LocalPath.Replace("/api/thumbnail/", "");
 
         if (videoId == null)
             return new(HttpStatusCode.NotFound);
@@ -202,7 +202,7 @@ public class FootageProcessor
 
     private async Task<HttpResponseMessage> GetVideoDraftFrame(HttpRequestMessage request)
     {
-        var (frameNumber, quality) = (request.RequestUri?.LocalPath.Replace("/draftFrame/", "") ?? "0/360").Split('/').Map(s => (int.Parse(s[0]), s[1]));
+        var (frameNumber, quality) = (request.RequestUri?.LocalPath.Replace("/api/draftFrame/", "") ?? "0/360").Split('/').Map(s => (int.Parse(s[0]), s[1]));
 
         var (width, height) = quality switch
         {

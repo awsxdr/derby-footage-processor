@@ -73,73 +73,75 @@ namespace DerbyFootageProcessor
         {
         }
 
-        private async void WebView_WebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
+        private void WebView_WebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
         {
             var deferral = e.GetDeferral();
 
-            try
+            var request = new HttpRequestMessage
             {
-                if (e.Request.Uri.StartsWith($"{BaseUri}api/"))
+                RequestUri = new(e.Request.Uri),
+                Method = new(e.Request.Method),
+                Content = e.Request.Content?.Map(c => new StreamContent(c)),
+            };
+
+            foreach (var (header, value) in e.Request.Headers)
+            {
+                request.Headers.Add(header, value);
+            }
+
+            Task.Run(async () =>
+            {
+                try
                 {
-                    e.Response = await HandleApiRequest(e.Request);
-                    return;
-                }
+                    if (request.RequestUri.AbsolutePath.StartsWith("/api/"))
+                    {
+                        var apiResponse = await HandleApiRequest(request);
+                        await InvokeAsync(() => e.Response = apiResponse);
+                        return;
+                    }
 
 #if DEBUG_UI
-                var request = new HttpRequestMessage
-                {
-                    RequestUri = new(e.Request.Uri.Replace(BaseUri.OriginalString, "http://localhost:5173/")),
-                    Method = new(e.Request.Method),
-                    Content = e.Request.Content?.Map(c => new StreamContent(c)),
-                };
+                    request.RequestUri = new(new Uri("http://localhost:5173/"), request.RequestUri.PathAndQuery);
 
-                foreach (var (header, value) in e.Request.Headers)
-                {
-                    request.Headers.Add(header, value);
-                }
+                    var response = await HttpClient.SendAsync(request);
+                    var responseContent = await response.Content.ReadAsStreamAsync();
 
-                var response = await HttpClient.SendAsync(request);
-
-                e.Response = _webView.CoreWebView2.Environment.CreateWebResourceResponse(
-                    await response.Content.ReadAsStreamAsync(),
-                    (int)response.StatusCode,
-                    response.ReasonPhrase!,
-                    string.Join("\r\n",
-                        response.Headers.Concat(response.Content.Headers)
-                            .Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"))
-                );
+                    await InvokeAsync(() =>
+                    {
+                        e.Response = _webView.CoreWebView2.Environment.CreateWebResourceResponse(
+                            responseContent,
+                            (int)response.StatusCode,
+                            response.ReasonPhrase!,
+                            string.Join("\r\n", response.Headers.Concat(response.Content.Headers).Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"))
+                        );
+                    });
 #else
                 // Load from file
 #endif
-            }
-            finally
-            {
-                deferral.Complete();
-            }
+                }
+                finally
+                {
+                    deferral.Complete();
+                }
+            });
         }
 
-        private async Task<CoreWebView2WebResourceResponse> HandleApiRequest(CoreWebView2WebResourceRequest request)
+        private async Task<CoreWebView2WebResourceResponse> HandleApiRequest(HttpRequestMessage request)
         {
             foreach (var endpoint in _apiEndpoints.Values)
             {
-                if (!endpoint.IsMatch(request.Uri))
+                if (!endpoint.IsMatch(request.RequestUri!.AbsoluteUri))
                     continue;
 
-                var fragment = endpoint.GetFragment(request.Uri);
-                var webRequest = new HttpRequestMessage
-                {
-                    RequestUri = new Uri(BaseUri, fragment),
-                    Method = new(request.Method),
-                    Content = request.Content?.Map(c => new StreamContent(c))
-                };
-                var result = await endpoint.Invoke(webRequest);
+                var result = await endpoint.Invoke(request);
 
-                var response = _webView.CoreWebView2.Environment.CreateWebResourceResponse(
-                    await result.Content.ReadAsStreamAsync(),
+                var resultStream = await result.Content.ReadAsStreamAsync();
+                var response = await InvokeAsync(() => _webView.CoreWebView2.Environment.CreateWebResourceResponse(
+                    resultStream,
                     (int)result.StatusCode,
                     result.ReasonPhrase!,
                     string.Join("\r\n", result.Headers.Concat(result.Content.Headers).Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"))
-                );
+                ));
 
                 return response;
             }
@@ -148,17 +150,18 @@ namespace DerbyFootageProcessor
                 Stream.Null,
                 404,
                 "Not found",
-                "");
+                ""
+            );
         }
 
-        private void WebView_CoreWebView2InitializationCompleted(object sender, CoreWebView2InitializationCompletedEventArgs e)
+        private async void WebView_CoreWebView2InitializationCompleted(object sender, CoreWebView2InitializationCompletedEventArgs e)
         {
             _webView.CoreWebView2.AddWebResourceRequestedFilter($"{BaseUri}*", CoreWebView2WebResourceContext.All);
             _webView.CoreWebView2.WebResourceRequested += WebView_WebResourceRequested;
 
             _footageProcessor = new FootageProcessor(this);
 
-            _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
+            await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
                 BaseDocumentScript.Replace("%%API_METHODS%%", _apiMethods.Values.Select(GetMethodInvokeScript).Map(string.Join, "\r\n            "))
             );
 
@@ -182,24 +185,27 @@ namespace DerbyFootageProcessor
             if (!_apiMethods.TryGetValue(request.Method, out var method))
                 return;
 
-            method.Invoke(request.Parameters)
-                .ContinueWith(result =>
-                {
-                    if (result.IsFaulted)
+            Task.Run(() =>
+            {
+                method.Invoke(request.Parameters)
+                    .ContinueWith(result =>
                     {
-                        Console.WriteLine($"### Exception invoking {method.Name}:");
-                        Console.WriteLine(result.Exception);
-                        return;
-                    }
+                        if (result.IsFaulted)
+                        {
+                            Console.WriteLine($"### Exception invoking {method.Name}:");
+                            Console.WriteLine(result.Exception);
+                            return;
+                        }
 
-                    Invoke(() =>
-                    {
-                        _webView.CoreWebView2?.PostWebMessageAsJson(
-                            JsonSerializer.Serialize(
-                                new RpcResponse(request.ReturnKey, result.Result),
-                                SerializerOptions));
+                        Invoke(() =>
+                        {
+                            _webView.CoreWebView2?.PostWebMessageAsJson(
+                                JsonSerializer.Serialize(
+                                    new RpcResponse(request.ReturnKey, result.Result),
+                                    SerializerOptions));
+                        });
                     });
-                });
+            });
         }
 
         public void RegisterApiMethod(ApiMethod method)
