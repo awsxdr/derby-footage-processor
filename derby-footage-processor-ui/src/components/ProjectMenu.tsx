@@ -1,5 +1,5 @@
 import type { Project } from "@/types";
-import { Menubar, MenubarContent, MenubarGroup, MenubarItem, MenubarMenu, MenubarSeparator, MenubarTrigger } from "./ui";
+import { MenubarContent, MenubarGroup, MenubarItem, MenubarMenu, MenubarSeparator, MenubarTrigger } from "./ui";
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router";
 import { YesNoAlertDialog, type YesNoAlertDialogProps } from "./YesNoAlertDialog";
@@ -116,42 +116,40 @@ export const ProjectMenu = ({ project }: ProjectMenuProps) => {
                 onYes={handleAcceptExit}
                 onNo={() => setAcceptExitDialogOpen(false)}
             />
-            <Menubar className="w-full border-0">
-                <MenubarMenu>
-                    <MenubarTrigger>Project</MenubarTrigger>
-                    <MenubarContent>
-                        <MenubarGroup>
-                            <MenubarItem onClick={handleProjectNew}>
-                                New
-                            </MenubarItem>
-                        </MenubarGroup>
-                        <MenubarSeparator />
-                        <MenubarGroup>
-                            <MenubarItem onClick={handleProjectOpen}>
-                                Open...
-                            </MenubarItem>
-                            <MenubarItem onClick={handleProjectSave}>
-                                Save
-                            </MenubarItem>
-                            <MenubarItem onClick={handleProjectSaveAs}>
-                                Save as...
-                            </MenubarItem>
-                        </MenubarGroup>
-                        <MenubarSeparator />
-                        <MenubarGroup>
-                            <MenubarItem onClick={handleProjectRender}>
-                                Render...
-                            </MenubarItem>
-                        </MenubarGroup>
-                        <MenubarSeparator />
-                        <MenubarGroup>
-                            <MenubarItem onClick={handleExit}>
-                                Exit
-                            </MenubarItem>
-                        </MenubarGroup>
-                    </MenubarContent>
-                </MenubarMenu>
-            </Menubar>
+            <MenubarMenu>
+                <MenubarTrigger>Project</MenubarTrigger>
+                <MenubarContent>
+                    <MenubarGroup>
+                        <MenubarItem onClick={handleProjectNew}>
+                            New
+                        </MenubarItem>
+                    </MenubarGroup>
+                    <MenubarSeparator />
+                    <MenubarGroup>
+                        <MenubarItem onClick={handleProjectOpen}>
+                            Open...
+                        </MenubarItem>
+                        <MenubarItem onClick={handleProjectSave}>
+                            Save
+                        </MenubarItem>
+                        <MenubarItem onClick={handleProjectSaveAs}>
+                            Save as...
+                        </MenubarItem>
+                    </MenubarGroup>
+                    <MenubarSeparator />
+                    <MenubarGroup>
+                        <MenubarItem onClick={handleProjectRender}>
+                            Render...
+                        </MenubarItem>
+                    </MenubarGroup>
+                    <MenubarSeparator />
+                    <MenubarGroup>
+                        <MenubarItem onClick={handleExit}>
+                            Exit
+                        </MenubarItem>
+                    </MenubarGroup>
+                </MenubarContent>
+            </MenubarMenu>
         </>
     );
 }

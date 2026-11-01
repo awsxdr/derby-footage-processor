@@ -1,6 +1,6 @@
 import type { Project } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui";
 import { OverlayEditor } from "./OverlayEditor";
+import { PeriodsEditor } from "./PeriodsEditor";
 
 export type ProjectEditorProps = {
     project: Project;
@@ -9,16 +9,10 @@ export type ProjectEditorProps = {
 
 export const ProjectEditor = ({ project, onProjectChanged }: ProjectEditorProps) => {
     return (
-        <div className="flex flex-col p-2 gap-2">
+        
+        <div className="flex flex-col p-2 gap-2 overflow-y-auto max-h-[100%]">
             <OverlayEditor project={project} onProjectChanged={onProjectChanged} />
-            <Card>
-                <CardHeader>
-                    <CardTitle>Intermissions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    Blah 2
-                </CardContent>
-            </Card>
+            <PeriodsEditor project={project} onProjectChanged={onProjectChanged} />
         </div>
     );
 }

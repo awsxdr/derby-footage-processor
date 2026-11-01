@@ -3,6 +3,8 @@ export type Project = {
     footageFiles: VideoFile[];
     overlayFiles: VideoFile[];
     chromaKey: ChromaKey;
+    overlayOffsetFrames: number;
+    periods: Period[];
 }
 
 export type VideoFile = {
@@ -21,9 +23,17 @@ export type ChromaKey = {
 
 export type OverlaySettings = {
     chromaKey: ChromaKey;
+    offsetFrames: number;
 };
 
 export type VideoDuration = {
     frames: number;
     seconds: number;
+}
+
+export type Period = {
+    startFrame: number;
+    endFrame: number;
+    startPaddingFrames: number;
+    endPaddingFrames: number;
 }

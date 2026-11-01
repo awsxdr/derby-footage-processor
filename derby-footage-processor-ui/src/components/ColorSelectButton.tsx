@@ -50,8 +50,6 @@ export const ColorSelectButton = ({ color, title, description, disabled, classNa
     }
 
     const test = useCallback((color: HslColor) => {
-        console.log(color);
-        console.log(clampedColor);
         onColorCommitted?.(color);
     }, [clampedColor, onColorCommitted]);
 

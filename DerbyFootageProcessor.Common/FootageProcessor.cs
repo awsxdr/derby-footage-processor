@@ -29,7 +29,10 @@ public class FootageProcessor
         osInteractions.RegisterApiMethod("getOverlayFiles", this, x => x.GetOverlayFiles());
         osInteractions.RegisterApiMethod("openOverlayFiles", this, x => x.OpenOverlayFiles());
         osInteractions.RegisterApiMethod("removeOverlayFile", this, x => x.RemoveOverlayFile(Placeholder.For<string>()));
-        osInteractions.RegisterApiMethod("setOverlaySettings", this, x => x.SetOverlaySettings(Placeholder.For<ChromaKey>()));
+        osInteractions.RegisterApiMethod("setOverlaySettings", this, x => x.SetOverlaySettings(Placeholder.For<ChromaKey>(), Placeholder.For<int>()));
+        osInteractions.RegisterApiMethod("generateDefaultPeriods", this, x => x.GenerateDefaultPeriods());
+        osInteractions.RegisterApiMethod("addPeriod", this, x => x.AddPeriod());
+        osInteractions.RegisterApiMethod("removePeriod", this, x => x.RemovePeriod(Placeholder.For<int>()));
         osInteractions.RegisterApiEndpoint("thumbnail/*", GetVideoThumbnail);
         osInteractions.RegisterApiEndpoint("draftFrame/*", GetVideoDraftFrame);
     }
@@ -65,6 +68,11 @@ public class FootageProcessor
         }
 
         await _projectSerializer.SaveFile(_currentProject, _currentProject.FilePath);
+
+        _currentProject = _currentProject with
+        {
+            IsDirty = false,
+        };
 
         return true;
     }
@@ -104,7 +112,7 @@ public class FootageProcessor
         {
             IsDirty = true,
             FootageFiles =
-                _currentProject.FootageFiles.Concat(newFootageFiles).ToArray()
+                _currentProject.FootageFiles.Concat(newFootageFiles).ToArray(),
         };
 
         foreach (var video in newFootageFiles)
@@ -167,12 +175,58 @@ public class FootageProcessor
         return Task.FromResult(_currentProject.OverlayFiles);
     }
 
-    private Task SetOverlaySettings(ChromaKey chromaKey)
+    private Task SetOverlaySettings(ChromaKey chromaKey, int offsetFrames)
     {
         _currentProject = _currentProject with
         {
             IsDirty = true,
             ChromaKey = chromaKey,
+            OverlayOffsetFrames = offsetFrames,
+        };
+
+        return Task.CompletedTask;
+    }
+
+    private Task GenerateDefaultPeriods()
+    {
+        const int thirtySeconds = 30 * 25;
+        var totalDuration = _currentProject.FootageFiles.Sum(f => f.Duration.Frames);
+
+        _currentProject = _currentProject with
+        {
+            Periods = [
+                new(thirtySeconds, totalDuration / 2 - thirtySeconds, thirtySeconds, thirtySeconds),
+                new(totalDuration / 2 + thirtySeconds, totalDuration - thirtySeconds, thirtySeconds, thirtySeconds),
+            ],
+        };
+
+        return Task.CompletedTask;
+    }
+
+    private Task RemovePeriod(int periodIndex)
+    {
+        if (_currentProject.Periods.Length <= 1)
+            return Task.CompletedTask;
+
+        _currentProject = _currentProject with
+        {
+            Periods = _currentProject.Periods.Take(periodIndex).Skip(1).ToArray()
+        };
+
+        return Task.CompletedTask;
+    }
+
+    private Task AddPeriod()
+    {
+        const int thirtySeconds = 30 * 25;
+        var totalDuration = _currentProject.FootageFiles.Sum(f => f.Duration.Frames);
+
+        _currentProject = _currentProject with
+        {
+            Periods = 
+                _currentProject.Periods.Append(
+                    new(totalDuration + thirtySeconds, totalDuration + thirtySeconds * 2, thirtySeconds, thirtySeconds)
+                ).ToArray(),
         };
 
         return Task.CompletedTask;
@@ -220,6 +274,10 @@ public class FootageProcessor
         };
 
         response.Content.Headers.ContentType = new("image/png");
+        response.Headers.CacheControl = new()
+        {
+            NoCache = true,
+        };
 
         return response;
     }

@@ -1,7 +1,8 @@
 import { Color, type HslColor, type Project } from "@/types"
-import { Card, CardContent, CardHeader, CardTitle, Slider } from "./ui";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui";
 import { ColorSelectButton } from "./ColorSelectButton";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { FrameSeeker } from "./FrameSeeker";
 
 export type OverlayEditorProps = {
     project: Project;
@@ -11,7 +12,11 @@ export type OverlayEditorProps = {
 export const OverlayEditor = ({ project, onProjectChanged }: OverlayEditorProps) => {
 
     const [uncommittedColor, setUncommittedColor] = useState<HslColor>(Color.rgbToHsl({ red: 0, green: 0, blue: 0 }));
-    const [uncommittedVariance, setUncommittedVariance] = useState(0.1);
+
+    const overlaySettings = useMemo(() => ({
+        chromaKey: project.chromaKey,
+        offsetFrames: project.overlayOffsetFrames,
+    }), [project]);
 
     useEffect(() => {
         const chromaKeyColor = Color.rgbToHsl({ 
@@ -19,33 +24,19 @@ export const OverlayEditor = ({ project, onProjectChanged }: OverlayEditorProps)
             green: project.chromaKey.green / 255,
             blue: project.chromaKey.blue / 255,
         });
+        console.log(overlaySettings.offsetFrames);
 
         setUncommittedColor(chromaKeyColor);
-        setUncommittedVariance(project.chromaKey.variancePercent);
     }, [project]);
 
     const handleUncommittedColorChange = useCallback((color: HslColor) => {
         setUncommittedColor(color);
     }, []);
 
-    const handleVarianceChange = useCallback((value: number | readonly number[]) => {
-        const variance = Array.isArray(value) ? value[0] : value;
-        setUncommittedVariance(variance);
-    }, [setUncommittedVariance]);
-
-    const handleVarianceCommit = useCallback((value: number | readonly number[]) => {
-        const variance = Array.isArray(value) ? value[0] : value;
-        window.api.setOverlaySettings({
-            chromaKey: {
-                ...project.chromaKey,
-                variancePercent: variance,
-            },
-        });
-    }, []);
-
     const handleChromaKeyColorChange = useCallback((color: HslColor) => {
         const rgb = Color.hslToRgb(color);
         window.api.setOverlaySettings({
+            ...overlaySettings,
             chromaKey: {
                 ...project.chromaKey,
                 red: Math.floor(rgb.red * 255),
@@ -54,14 +45,35 @@ export const OverlayEditor = ({ project, onProjectChanged }: OverlayEditorProps)
             },
         });
         onProjectChanged?.();
-    }, [onProjectChanged]);
+    }, [onProjectChanged, overlaySettings]);
+
+    const handleOffsetFramesChanged = useCallback((offsetFrames: number) => {
+        console.log(offsetFrames);
+        window.api.setOverlaySettings({
+            ...overlaySettings,
+            offsetFrames
+        });
+        onProjectChanged?.();
+    }, [overlaySettings, onProjectChanged]);
+
+    const maxOffset = useMemo(() => project.footageFiles.reduce((t, f) => t + f.duration.frames, 0), [project.footageFiles]);
+    const minOffset = useMemo(() => -project.overlayFiles.reduce((t, f) => t + f.duration.frames, 0), [project.overlayFiles]);
 
     return (
-        <Card>
+        <Card className="shrink-0">
             <CardHeader>
                 <CardTitle>Overlay</CardTitle>
             </CardHeader>
             <CardContent>
+                <div className="flex flex-col gap-2">
+                    <span>Offset</span>
+                    <FrameSeeker
+                        value={overlaySettings.offsetFrames}
+                        min={minOffset}
+                        max={maxOffset}
+                        onValueChanged={handleOffsetFramesChanged}
+                    />
+                </div>
                 <div className="flex gap-2 items-center">
                     <span>Background color</span>
                     <ColorSelectButton 
@@ -70,17 +82,6 @@ export const OverlayEditor = ({ project, onProjectChanged }: OverlayEditorProps)
                         onColorChanged={handleUncommittedColorChange}
                         onColorCommitted={handleChromaKeyColorChange} 
                     />
-                </div>
-                <div className="flex gap-2 items-center">
-                    <span>Variance</span>
-                    <Slider 
-                        value={[uncommittedVariance]} 
-                        max={100} 
-                        min={0} 
-                        onValueChange={handleVarianceChange}
-                        onValueCommitted={handleVarianceCommit}
-                    />
-                    <span>{uncommittedVariance}%</span>
                 </div>
             </CardContent>
         </Card>

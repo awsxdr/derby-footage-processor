@@ -9,7 +9,6 @@ public class ProjectSerializer
 
     public async Task<Project> LoadFile(string filePath)
     {
-        var test = await File.ReadAllTextAsync(filePath);
         var persistedProject = JsonSerializer.Deserialize<PersistedProject>(await File.ReadAllTextAsync(filePath));
 
         if (persistedProject == null)
@@ -20,7 +19,10 @@ public class ProjectSerializer
             filePath,
             persistedProject.FootageFiles.Select(PersistedVideoFileToVideoFile(Path.GetDirectoryName(filePath)!)).ToArray(),
             persistedProject.OverlayFiles.Select(PersistedVideoFileToVideoFile(Path.GetDirectoryName(filePath)!)).ToArray(),
-            persistedProject.ChromaKey);
+            persistedProject.ChromaKey,
+            persistedProject.OverlayOffsetFrames,
+            persistedProject.Periods
+        );
     }
 
     public async Task SaveFile(Project project, string filePath)
@@ -28,7 +30,10 @@ public class ProjectSerializer
         var persistedProject = new PersistedProject(
             project.FootageFiles.Select(VideoFileToPersistedVideoFile(Path.GetDirectoryName(filePath)!)).ToArray(),
             project.OverlayFiles.Select(VideoFileToPersistedVideoFile(Path.GetDirectoryName(filePath)!)).ToArray(),
-            project.ChromaKey);
+            project.ChromaKey,
+            project.OverlayOffsetFrames,
+            project.Periods
+        );
 
         var json = JsonSerializer.Serialize(persistedProject);
 
@@ -71,7 +76,9 @@ public class ProjectSerializer
 public record PersistedProject(
     PersistedVideoFile[] FootageFiles,
     PersistedVideoFile[] OverlayFiles,
-    ChromaKey ChromaKey
+    ChromaKey ChromaKey,
+    int OverlayOffsetFrames,
+    Period[] Periods
 );
 
 public record PersistedVideoFile(string AbsolutePath, string RelativePath);

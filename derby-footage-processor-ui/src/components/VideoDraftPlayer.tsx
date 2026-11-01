@@ -1,6 +1,6 @@
 import { Button, Slider } from "@/components/ui";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Color, type Project } from "@/types";
+import { type Project } from "@/types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AspectRatio } from "./ui/aspect-ratio";
 import { FrameTime } from "./FrameTime";
@@ -24,6 +24,13 @@ export const VideoDraftPlayer = ({ project }: VideoDraftPlayerProps) => {
     const handleIncrementFrame = useCallback((frameCount: number = 1) => {
         setFrame(c => c + frameCount);
     }, [setFrame]);
+
+    const [refresh, setRefresh] = useState(0);
+
+    useEffect(() => {
+        console.log("Project changed");
+        setRefresh(x => x + 1);
+    }, [setRefresh, project]);
 
     const items = [
         { label: "360p", value: "360" },
@@ -50,8 +57,7 @@ export const VideoDraftPlayer = ({ project }: VideoDraftPlayerProps) => {
 
     const videoUrl = useMemo(
         () => {
-            const hexColor = Color.rgbToString(Color.byteRgbToRgb(project.chromaKey));
-            return `/api/draftFrame/${frame}/${displayQuality}?c=${hexColor}`;
+            return `/api/draftFrame/${frame}/${displayQuality}?r=${refresh}`;
         },
         [project, frame, displayQuality]
     );

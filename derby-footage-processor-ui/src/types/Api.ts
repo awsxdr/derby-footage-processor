@@ -14,5 +14,8 @@ export type Api = {
     openOverlayFiles: () => Promise<VideoFile[]>;
     removeOverlayFile: (parameters: { fileId: string }) => Promise<VideoFile[]>;
     setOverlaySettings: (settings: OverlaySettings) => Promise<void>;
+    generateDefaultPeriods: () => Promise<void>;
+    addPeriod: () => Promise<void>;
+    removePeriod: (periodIndex: number) => Promise<void>;
 };
 

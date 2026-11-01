@@ -22,7 +22,7 @@ export const RightSidebar = ({ menu, mainContent, sidebarContent }: RightSidebar
                     </ResizablePanel>
                     <ResizableHandle withHandle />
                     <ResizablePanel defaultSize="35%" minSize="20%">
-                        <aside>
+                        <aside className="w-full h-full max-h-[calc(100vh-var(--spacing)*9)] overflow-hidden">
                             { sidebarContent }
                         </aside>
                     </ResizablePanel>

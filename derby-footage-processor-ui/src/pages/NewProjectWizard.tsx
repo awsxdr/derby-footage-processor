@@ -26,9 +26,10 @@ export const NewProjectWizard = () => {
 
     const [currentPage, setCurrentPage] = useState(0);
 
-    const handleNext = useCallback(() => {
+    const handleNext = useCallback(async () => {
         if (currentPage + 1 >= pages.length) {
-            navigate('/project');
+            await window.api.generateDefaultPeriods();
+            await navigate('/project');
             return;
         }
         setCurrentPage(s => s + 1);

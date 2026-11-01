@@ -58,9 +58,11 @@ public class VideoProcessor
 
         var filter = "";
 
-        if (project.OverlayFiles.Length > 0)
+        var overlayFrame = frameNumber + project.OverlayOffsetFrames;
+
+        if (overlayFrame >= 0 && project.OverlayFiles.Length > 0 && overlayFrame < project.OverlayFiles.Select(f => f.Duration.Frames).Sum())
         {
-            var (overlayCoarseSeek, overlayFineSeek) = CalculateTimeOffsets(frameNumber);
+            var (overlayCoarseSeek, overlayFineSeek) = CalculateTimeOffsets(overlayFrame);
 
             arguments = arguments
                 .AddConcatInput(project.OverlayFiles.Select(f => f.Path), o => o

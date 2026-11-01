@@ -39,12 +39,9 @@ namespace DerbyFootageProcessor
                 static init() {
                     window.chrome.webview.addEventListener('message', arg => {
                         const request = arg.data;
-                        console.log(request);
                         
                         if(request.type === 'RESPONSE') {
                             const resolve = DerbyFootageProcessorHost.resultResolvers[request.returnKey];
-                            
-                            console.log(resolve ? "Resolve found" : "Resolve not found");
                             
                             resolve(request.result);
                         }
@@ -66,7 +63,7 @@ namespace DerbyFootageProcessor
 
         public void CloseWindow()
         {
-            Close();
+            Invoke(Close);
         }
 
         private void MainWindow_Load(object sender, EventArgs e)
